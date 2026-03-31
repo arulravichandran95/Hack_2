@@ -1,6 +1,6 @@
 package com.example.Leave_Backend.Admin_report;
 
-import com.example.Leave_Backend.model.LeaveApplication;
+import com.example.Leave_Backend.model.entity.LeaveApplication;
 import java.time.LocalDate;
 import java.util.List;
 

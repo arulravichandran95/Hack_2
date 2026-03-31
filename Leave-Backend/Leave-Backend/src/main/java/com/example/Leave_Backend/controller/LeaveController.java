@@ -5,7 +5,6 @@ import com.example.Leave_Backend.model.dto.LeaveResponseDTO;
 import com.example.Leave_Backend.model.entity.User;
 import com.example.Leave_Backend.service.LeaveService;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -13,13 +12,19 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Controller for employee leave applications.
+ */
 @RestController
 @RequestMapping("/api/leaves")
-@RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class LeaveController {
 
     private final LeaveService leaveService;
+
+    public LeaveController(LeaveService leaveService) {
+        this.leaveService = leaveService;
+    }
 
     @PostMapping("/apply")
     public ResponseEntity<LeaveResponseDTO> applyLeave(
@@ -35,7 +40,7 @@ public class LeaveController {
     }
 
     @GetMapping("/balance")
-    public ResponseEntity<Map<String, Double>> getLeaveBalance(
+    public ResponseEntity<Map<String, Integer>> getLeaveBalance(
             @AuthenticationPrincipal User user) {
         return ResponseEntity.ok(leaveService.getLeaveBalance(user));
     }

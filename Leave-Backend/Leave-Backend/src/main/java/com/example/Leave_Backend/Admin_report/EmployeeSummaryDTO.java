@@ -29,26 +29,10 @@ public class EmployeeSummaryDTO {
     public String getDepartment() { return department; }
     public Map<String, Integer> getBalances() { return balances; }
 
-    // Builder
-    public static EmployeeSummaryDTOBuilder builder() {
-        return new EmployeeSummaryDTOBuilder();
-    }
-
-    public static class EmployeeSummaryDTOBuilder {
-        private Long employeeId;
-        private String employeeName;
-        private String email;
-        private String department;
-        private Map<String, Integer> balances;
-
-        public EmployeeSummaryDTOBuilder employeeId(Long employeeId) { this.employeeId = employeeId; return this; }
-        public EmployeeSummaryDTOBuilder employeeName(String employeeName) { this.employeeName = employeeName; return this; }
-        public EmployeeSummaryDTOBuilder email(String email) { this.email = email; return this; }
-        public EmployeeSummaryDTOBuilder department(String department) { this.department = department; return this; }
-        public EmployeeSummaryDTOBuilder balances(Map<String, Integer> balances) { this.balances = balances; return this; }
-
-        public EmployeeSummaryDTO build() {
-            return new EmployeeSummaryDTO(employeeId, employeeName, email, department, balances);
-        }
-    }
+    // Setters
+    public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
+    public void setEmployeeName(String employeeName) { this.employeeName = employeeName; }
+    public void setEmail(String email) { this.email = email; }
+    public void setDepartment(String department) { this.department = department; }
+    public void setBalances(Map<String, Integer> balances) { this.balances = balances; }
 }

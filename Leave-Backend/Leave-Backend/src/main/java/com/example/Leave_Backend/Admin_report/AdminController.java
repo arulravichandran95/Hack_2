@@ -1,6 +1,6 @@
 package com.example.Leave_Backend.Admin_report;
 
-import com.example.Leave_Backend.model.LeaveApplication;
+import com.example.Leave_Backend.model.entity.LeaveApplication;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
