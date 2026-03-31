@@ -6,9 +6,12 @@ import com.example.Leave_Backend.model.entity.User;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Service interface for Leave management.
+ */
 public interface LeaveService {
     LeaveResponseDTO applyLeave(LeaveRequestDTO requestDTO, User user);
     List<LeaveResponseDTO> getMyLeaves(User user);
-    Map<String, Double> getLeaveBalance(User user);
+    Map<String, Integer> getLeaveBalance(User user);
     void cancelLeave(Long leaveId, User user);
 }

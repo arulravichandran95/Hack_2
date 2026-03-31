@@ -5,57 +5,54 @@ import com.example.Leave_Backend.model.dto.LeaveResponseDTO;
 import com.example.Leave_Backend.model.entity.LeaveApplication;
 import com.example.Leave_Backend.model.entity.User;
 import com.example.Leave_Backend.model.entity.LeaveBalance;
-import com.example.Leave_Backend.model.enums.LeaveType;
-import com.example.Leave_Backend.model.enums.LeaveStatus;
+import com.example.Leave_Backend.enums.LeaveType;
+import com.example.Leave_Backend.enums.LeaveStatus;
 import com.example.Leave_Backend.repository.LeaveRepository;
 import com.example.Leave_Backend.repository.LeaveBalanceRepository;
 import com.example.Leave_Backend.service.LeaveService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class LeaveServiceImpl implements LeaveService {
 
     private final LeaveRepository leaveRepository;
     private final LeaveBalanceRepository balanceRepository;
 
+    public LeaveServiceImpl(LeaveRepository leaveRepository, LeaveBalanceRepository balanceRepository) {
+        this.leaveRepository = leaveRepository;
+        this.balanceRepository = balanceRepository;
+    }
+
     @Override
     @Transactional
     public LeaveResponseDTO applyLeave(LeaveRequestDTO requestDTO, User user) {
-        // 1. Validate dates
         if (requestDTO.getEndDate().isBefore(requestDTO.getStartDate())) {
             throw new RuntimeException("End date cannot be before start date");
         }
 
-        // 2. Calculate total days excluding weekends
         int totalDays = calculateWorkingDays(requestDTO.getStartDate(), requestDTO.getEndDate());
         if (totalDays <= 0) {
             throw new RuntimeException("Leave duration must be at least 1 working day");
         }
 
-        // 3. Check for overlapping leaves
         if (leaveRepository.existsOverlappingLeave(user, requestDTO.getStartDate(), requestDTO.getEndDate())) {
             throw new RuntimeException("You already have an overlapping leave application for the selected dates");
         }
 
-        // 4. Check leave balance
         LeaveBalance balance = balanceRepository.findByUser(user)
                 .orElseThrow(() -> new RuntimeException("Leave balance not found for the user"));
         
         validateBalance(balance, requestDTO.getLeaveType(), totalDays);
 
-        // 5. Create application
         LeaveApplication application = LeaveApplication.builder()
                 .user(user)
                 .leaveType(requestDTO.getLeaveType())
@@ -67,7 +64,6 @@ public class LeaveServiceImpl implements LeaveService {
                 .appliedAt(LocalDateTime.now())
                 .build();
 
-        // 6. Deduct balance (Provisional deduction for PENDING leave)
         deductBalance(balance, requestDTO.getLeaveType(), totalDays);
         balanceRepository.save(balance);
 
@@ -84,14 +80,16 @@ public class LeaveServiceImpl implements LeaveService {
     }
 
     @Override
-    public Map<String, Double> getLeaveBalance(User user) {
+    public Map<String, Integer> getLeaveBalance(User user) {
         LeaveBalance balance = balanceRepository.findByUser(user)
                 .orElseThrow(() -> new RuntimeException("Leave balance not found"));
         
-        Map<String, Double> balances = new HashMap<>();
+        Map<String, Integer> balances = new HashMap<>();
         balances.put("ANNUAL", balance.getAnnualLeave());
         balances.put("SICK", balance.getSickLeave());
         balances.put("CASUAL", balance.getCasualLeave());
+        balances.put("MATERNITY", balance.getMaternityLeave());
+        balances.put("PATERNITY", balance.getPaternityLeave());
         balances.put("UNPAID", balance.getUnpaidLeave());
         return balances;
     }
@@ -110,7 +108,6 @@ public class LeaveServiceImpl implements LeaveService {
             throw new RuntimeException("Only PENDING leaves can be cancelled");
         }
 
-        // Refund balance
         LeaveBalance balance = balanceRepository.findByUser(user)
                 .orElseThrow(() -> new RuntimeException("Leave balance not found"));
         
@@ -133,19 +130,20 @@ public class LeaveServiceImpl implements LeaveService {
     }
 
     private void validateBalance(LeaveBalance balance, LeaveType type, int days) {
-        double currentBalance = getBalanceByType(balance, type);
-        if (currentBalance < days && type != LeaveType.UNPAID) {
+        int currentBalance = getBalanceByType(balance, type);
+        if (type != LeaveType.UNPAID && currentBalance < days) {
             throw new RuntimeException("Insufficient " + type + " leave balance. Required: " + days + ", Available: " + currentBalance);
         }
     }
 
-    private double getBalanceByType(LeaveBalance balance, LeaveType type) {
+    private int getBalanceByType(LeaveBalance balance, LeaveType type) {
         return switch (type) {
             case ANNUAL -> balance.getAnnualLeave();
             case SICK -> balance.getSickLeave();
             case CASUAL -> balance.getCasualLeave();
-            case UNPAID -> 999.0; // Unlimited unpaid leave or handled differently
-            default -> 0.0;
+            case MATERNITY -> balance.getMaternityLeave();
+            case PATERNITY -> balance.getPaternityLeave();
+            case UNPAID -> 999;
         };
     }
 
@@ -154,6 +152,8 @@ public class LeaveServiceImpl implements LeaveService {
             case ANNUAL -> balance.setAnnualLeave(balance.getAnnualLeave() - days);
             case SICK -> balance.setSickLeave(balance.getSickLeave() - days);
             case CASUAL -> balance.setCasualLeave(balance.getCasualLeave() - days);
+            case MATERNITY -> balance.setMaternityLeave(balance.getMaternityLeave() - days);
+            case PATERNITY -> balance.setPaternityLeave(balance.getPaternityLeave() - days);
             case UNPAID -> balance.setUnpaidLeave(balance.getUnpaidLeave() + days);
         }
     }
@@ -163,6 +163,8 @@ public class LeaveServiceImpl implements LeaveService {
             case ANNUAL -> balance.setAnnualLeave(balance.getAnnualLeave() + days);
             case SICK -> balance.setSickLeave(balance.getSickLeave() + days);
             case CASUAL -> balance.setCasualLeave(balance.getCasualLeave() + days);
+            case MATERNITY -> balance.setMaternityLeave(balance.getMaternityLeave() + days);
+            case PATERNITY -> balance.setPaternityLeave(balance.getPaternityLeave() + days);
             case UNPAID -> balance.setUnpaidLeave(balance.getUnpaidLeave() - days);
         }
     }

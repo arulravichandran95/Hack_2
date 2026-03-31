@@ -1,10 +1,10 @@
 package com.example.Leave_Backend.Admin_report;
 
-import com.example.Leave_Backend.model.LeaveApplication;
-import com.example.Leave_Backend.model.LeaveBalance;
-import com.example.Leave_Backend.model.User;
-import com.example.Leave_Backend.model.LeaveStatus;
-import com.example.Leave_Backend.model.LeaveType;
+import com.example.Leave_Backend.model.entity.LeaveApplication;
+import com.example.Leave_Backend.model.entity.LeaveBalance;
+import com.example.Leave_Backend.model.entity.User;
+import com.example.Leave_Backend.enums.LeaveStatus;
+import com.example.Leave_Backend.enums.LeaveType;
 import com.example.Leave_Backend.repository.LeaveRepository;
 import com.example.Leave_Backend.repository.LeaveBalanceRepository;
 import com.example.Leave_Backend.repository.UserRepository;
@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -48,19 +48,40 @@ public class AdminServiceImpl implements AdminService {
             throw new RuntimeException("Only PENDING leave applications can be approved");
         }
 
-        User employee = leave.getEmployee();
+        User user = leave.getUser();
         LeaveType type = leave.getLeaveType();
-        long daysRequested = ChronoUnit.DAYS.between(leave.getStartDate(), leave.getEndDate()) + 1;
+        int daysRequested = leave.getTotalDays();
 
-        LeaveBalance balance = leaveBalanceRepository.findByEmployeeAndLeaveType(employee, type)
-                .orElseThrow(() -> new RuntimeException("No leave balance found for employee"));
+        LeaveBalance balance = leaveBalanceRepository.findByUser(user)
+                .orElseThrow(() -> new RuntimeException("No leave balance found for user"));
 
-        if (balance.getRemainingDays() < daysRequested) {
-            throw new RuntimeException("Insufficient leave balance for the requested leave type");
+        // Deduct balance based on type
+        switch (type) {
+            case ANNUAL -> {
+                if (balance.getAnnualLeave() < daysRequested) throw new RuntimeException("Insufficient Annual Leave");
+                balance.setAnnualLeave(balance.getAnnualLeave() - daysRequested);
+            }
+            case SICK -> {
+                if (balance.getSickLeave() < daysRequested) throw new RuntimeException("Insufficient Sick Leave");
+                balance.setSickLeave(balance.getSickLeave() - daysRequested);
+            }
+            case CASUAL -> {
+                if (balance.getCasualLeave() < daysRequested) throw new RuntimeException("Insufficient Casual Leave");
+                balance.setCasualLeave(balance.getCasualLeave() - daysRequested);
+            }
+            case MATERNITY -> {
+                if (balance.getMaternityLeave() < daysRequested) throw new RuntimeException("Insufficient Maternity Leave");
+                balance.setMaternityLeave(balance.getMaternityLeave() - daysRequested);
+            }
+            case PATERNITY -> {
+                if (balance.getPaternityLeave() < daysRequested) throw new RuntimeException("Insufficient Paternity Leave");
+                balance.setPaternityLeave(balance.getPaternityLeave() - daysRequested);
+            }
+            case UNPAID -> {
+                balance.setUnpaidLeave(balance.getUnpaidLeave() + daysRequested);
+            }
         }
 
-        // Deduct balance
-        balance.setRemainingDays(balance.getRemainingDays() - (int) daysRequested);
         leaveBalanceRepository.save(balance);
 
         // Update leave status
@@ -83,7 +104,7 @@ public class AdminServiceImpl implements AdminService {
         }
 
         leave.setStatus(LeaveStatus.REJECTED);
-        leave.setAdminComment(leaveApprovalDTO.getComment());
+        leave.setComments(leaveApprovalDTO.getComment());
         leaveRepository.save(leave);
     }
 
@@ -91,9 +112,15 @@ public class AdminServiceImpl implements AdminService {
     public List<EmployeeSummaryDTO> getEmployeeSummaries() {
         List<User> employees = userRepository.findAll();
         return employees.stream().map(employee -> {
-            List<LeaveBalance> balances = leaveBalanceRepository.findByEmployee(employee);
-            Map<String, Integer> balanceMap = balances.stream()
-                    .collect(Collectors.toMap(b -> b.getLeaveType().name(), LeaveBalance::getRemainingDays));
+            LeaveBalance balance = leaveBalanceRepository.findByUser(employee).orElse(new LeaveBalance());
+            
+            Map<String, Integer> balanceMap = new HashMap<>();
+            balanceMap.put("ANNUAL", balance.getAnnualLeave());
+            balanceMap.put("SICK", balance.getSickLeave());
+            balanceMap.put("CASUAL", balance.getCasualLeave());
+            balanceMap.put("MATERNITY", balance.getMaternityLeave());
+            balanceMap.put("PATERNITY", balance.getPaternityLeave());
+            balanceMap.put("UNPAID", balance.getUnpaidLeave());
             
             return new EmployeeSummaryDTO(
                     employee.getId(),
@@ -107,10 +134,9 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     public List<LeaveApplication> getAllLeaves(String status, String department, LocalDate from, LocalDate to) {
-        // Simple dynamic query using stream filtering for demo (Ideally use Specification API)
         return leaveRepository.findAll().stream()
                 .filter(l -> status == null || l.getStatus().name().equalsIgnoreCase(status))
-                .filter(l -> department == null || (l.getEmployee().getDepartment() != null && l.getEmployee().getDepartment().equalsIgnoreCase(department)))
+                .filter(l -> department == null || (l.getUser().getDepartment() != null && l.getUser().getDepartment().equalsIgnoreCase(department)))
                 .filter(l -> from == null || !l.getStartDate().isBefore(from))
                 .filter(l -> to == null || !l.getEndDate().isAfter(to))
                 .collect(Collectors.toList());
@@ -120,17 +146,16 @@ public class AdminServiceImpl implements AdminService {
     public LeaveReportDTO getReportsSummary() {
         List<LeaveApplication> allLeaves = leaveRepository.findAll();
         
-        // Total leaves per type
+        // Use explicit map function to avoid generic Object inference issues
         Map<String, Long> typeCounts = allLeaves.stream()
                 .collect(Collectors.groupingBy(l -> l.getLeaveType().name(), Collectors.counting()));
         
-        // Status counts
         Map<String, Long> statusCounts = allLeaves.stream()
                 .collect(Collectors.groupingBy(l -> l.getStatus().name(), Collectors.counting()));
         
-        // Department-wise breakdown
         Map<String, Long> deptCounts = allLeaves.stream()
-                .collect(Collectors.groupingBy(l -> l.getEmployee().getDepartment(), Collectors.counting()));
+                .filter(l -> l.getUser().getDepartment() != null)
+                .collect(Collectors.groupingBy(l -> l.getUser().getDepartment(), Collectors.counting()));
 
         return new LeaveReportDTO(
                 typeCounts,
