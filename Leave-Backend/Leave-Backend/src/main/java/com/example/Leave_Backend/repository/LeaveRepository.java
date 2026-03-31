@@ -2,9 +2,13 @@ package com.example.Leave_Backend.repository;
 
 import com.example.Leave_Backend.model.LeaveApplication;
 import com.example.Leave_Backend.model.LeaveStatus;
+import com.example.Leave_Backend.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -12,5 +16,15 @@ import java.util.List;
  */
 @Repository
 public interface LeaveRepository extends JpaRepository<LeaveApplication, Long> {
+    
     List<LeaveApplication> findByStatus(LeaveStatus status);
+
+    List<LeaveApplication> findByEmployeeOrderByStartDateDesc(User employee);
+
+    @Query("SELECT COUNT(l) > 0 FROM LeaveApplication l WHERE l.employee = :user " +
+           "AND l.status <> 'REJECTED' " +
+           "AND ((l.startDate <= :endDate AND l.endDate >= :startDate))")
+    boolean existsOverlappingLeave(@Param("user") User user, 
+                                   @Param("startDate") LocalDate startDate, 
+                                   @Param("endDate") LocalDate endDate);
 }

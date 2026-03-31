@@ -16,4 +16,5 @@ import java.util.Optional;
 public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Long> {
     List<LeaveBalance> findByEmployee(User employee);
     Optional<LeaveBalance> findByEmployeeAndLeaveType(User employee, LeaveType leaveType);
+    Optional<LeaveBalance> findByEmployee(Optional<User> user);
 }
