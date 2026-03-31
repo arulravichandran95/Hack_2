@@ -14,7 +14,11 @@ import java.util.Optional;
  */
 @Repository
 public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Long> {
+    
     List<LeaveBalance> findByEmployee(User employee);
+    
     Optional<LeaveBalance> findByEmployeeAndLeaveType(User employee, LeaveType leaveType);
-    Optional<LeaveBalance> findByEmployee(Optional<User> user);
+
+    // Mapped to existing 'employee' field from your snippet's 'user' logic
+    Optional<LeaveBalance> findByEmployee(User employee);
 }
